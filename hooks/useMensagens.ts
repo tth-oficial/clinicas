@@ -69,6 +69,7 @@ export function useMensagens(conversaId: string | null) {
   // Carregar mensagens quando a conversa muda
   useEffect(() => {
     if (!conversaId) {
+      // eslint-disable-next-line
       setMensagens([])
       return
     }

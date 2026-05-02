@@ -44,7 +44,8 @@ export function useLeads(filtros: FiltrosLeads = {}) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.etapa, filtros.temperatura, filtros.status, filtros.busca, filtros.page, filtros.limit])
 
-  useEffect(() => { fetchLeads() }, [fetchLeads])
+  // eslint-disable-next-line
+  useEffect(() => { void fetchLeads() }, [fetchLeads])
 
   // Realtime: atualiza kanban quando outro usuário move um card
   const fetchRef = useRef(fetchLeads)
@@ -85,7 +86,8 @@ export function useLead(id: string) {
     }
   }, [id])
 
-  useEffect(() => { fetchLead() }, [fetchLead])
+  // eslint-disable-next-line
+  useEffect(() => { void fetchLead() }, [fetchLead])
 
   return { lead, loading, error, refetch: fetchLead }
 }

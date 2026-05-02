@@ -23,11 +23,6 @@ const nextConfig: NextConfig = {
       },
     ]
   },
-
-  // Ignorar ESLint no build da Vercel para não travar o deploy
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 };
 
 export default nextConfig;
