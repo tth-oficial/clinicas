@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 
+/** @see https://nextjs.org/docs/app/api-reference/config/next-config-js */
 const nextConfig: NextConfig = {
   // Permitir imagens externas (logos das clínicas no Supabase Storage)
   images: {
