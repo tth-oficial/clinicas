@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Move-Item *)",
+      "PowerShell(Get-Content *)",
+      "PowerShell(npm run *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tthsi\\\\Desktop\\\\clinicas\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "PowerShell(tree \"C:\\\\Users\\\\tthsi\\\\Desktop\\\\clinicas\" -L 3 -I \"node_modules\" | Select-Object -First 100)",
+      "Bash(npm install *)",
+      "Bash(npx tsc *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\tthsi\\\\Desktop\\\\clinicas\" -Recurse -ErrorAction SilentlyContinue)",
+      "Bash(Select-Object -First 50)",
+      "Bash(Format-Table FullName)"
+    ]
+  }
+}
