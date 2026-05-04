@@ -4,23 +4,21 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, MessageSquare, Calendar,
-  BellRing, Target, RefreshCw, Leaf, Flame, Brain, BarChart2,
+  BellRing, Target, RefreshCw, Leaf, Flame,
 } from 'lucide-react'
 import type { Tema } from '@/lib/theme'
 import type { Clinica } from '@/types'
 
 const MENU_ITEMS = [
-  { href: '/dashboard',   label: 'Dashboard',    Icon: LayoutDashboard },
-  { href: '/crm',         label: 'CRM',          Icon: Users },
-  { href: '/whatsapp',    label: 'WhatsApp',     Icon: MessageSquare },
-  { href: '/agendamento', label: 'Agendamento',  Icon: Calendar },
-  { href: '/anti-no-show',label: 'Anti No-Show', Icon: BellRing },
-  { href: '/leads',       label: 'Leads',        Icon: Target },
-  { href: '/follow-up',   label: 'Follow-up',    Icon: RefreshCw },
-  { href: '/nutricao',    label: 'Nutrição',     Icon: Leaf },
-  { href: '/reaquecimento',label: 'Reaquecimento',Icon: Flame },
-  { href: '/ia-decisao',  label: 'IA Decisão',   Icon: Brain },
-  { href: '/relatorio',   label: 'Relatório',    Icon: BarChart2 },
+  { href: '/dashboard',     label: 'Dashboard',     Icon: LayoutDashboard },
+  { href: '/crm',           label: 'CRM',           Icon: Users },
+  { href: '/whatsapp',      label: 'WhatsApp',      Icon: MessageSquare },
+  { href: '/agendamento',   label: 'Agendamento',   Icon: Calendar },
+  { href: '/anti-no-show',  label: 'Anti No-Show',  Icon: BellRing },
+  { href: '/leads',         label: 'Leads',         Icon: Target },
+  { href: '/follow-up',     label: 'Follow-up',     Icon: RefreshCw },
+  { href: '/nutricao',      label: 'Nutrição',      Icon: Leaf },
+  { href: '/reaquecimento', label: 'Reaquecimento',  Icon: Flame },
 ]
 
 interface SidebarProps {
@@ -39,6 +37,7 @@ export function Sidebar({ clinica, tema }: SidebarProps) {
       {/* Logo / nome da clínica */}
       <div className="px-5 py-6 border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
         {tema.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
           <img src={tema.logoUrl} alt={tema.nomeExibicao} className="h-8 w-auto object-contain" />
         ) : (
           <div className="flex flex-col">
