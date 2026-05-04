@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Users, MessageSquare, Calendar,
-  BellRing, Target, RefreshCw, Leaf, Flame,
+  BellRing, Target, RefreshCw, Leaf, Flame, Brain, BarChart2,
 } from 'lucide-react'
 import type { Tema } from '@/lib/theme'
 import type { Clinica } from '@/types'
@@ -18,7 +18,9 @@ const MENU_ITEMS = [
   { href: '/leads',         label: 'Leads',         Icon: Target },
   { href: '/follow-up',     label: 'Follow-up',     Icon: RefreshCw },
   { href: '/nutricao',      label: 'Nutrição',      Icon: Leaf },
-  { href: '/reaquecimento', label: 'Reaquecimento',  Icon: Flame },
+  { href: '/reaquecimento', label: 'Reaquecimento', Icon: Flame },
+  { href: '/ia-decisao',    label: 'IA Decisão',    Icon: Brain },
+  { href: '/relatorio',     label: 'Relatório',     Icon: BarChart2 },
 ]
 
 interface SidebarProps {
