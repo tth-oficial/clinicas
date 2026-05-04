@@ -5,6 +5,8 @@ import { LogOut, ChevronDown } from 'lucide-react'
 import { useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { iniciais } from '@/lib/utils'
+import { BuscaGlobal } from './BuscaGlobal'
+import { Notificacoes } from './Notificacoes'
 import type { Clinica } from '@/types'
 
 const TITULOS: Record<string, string> = {
@@ -20,6 +22,7 @@ const TITULOS: Record<string, string> = {
   '/ia-decisao':   'IA Decisão',
   '/relatorio':    'Relatório',
   '/configuracoes':'Configurações',
+  '/onboarding':   'Configuração inicial',
 }
 
 interface HeaderProps {
@@ -45,15 +48,21 @@ export function Header({ clinica, userName }: HeaderProps) {
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-6 flex-shrink-0"
+      className="h-14 flex items-center justify-between px-6 flex-shrink-0 pl-14 md:pl-6"
       style={{ background: 'var(--cor-card)', borderBottom: '1px solid var(--cor-borda)' }}
     >
       <h1 className="text-base font-semibold" style={{ color: 'var(--cor-texto)' }}>
         {tituloPagina}
       </h1>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm hidden sm:block" style={{ color: 'var(--cor-texto-suave)' }}>
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Busca global */}
+        <BuscaGlobal />
+
+        {/* Notificações */}
+        <Notificacoes />
+
+        <span className="text-sm hidden lg:block" style={{ color: 'var(--cor-texto-suave)' }}>
           {clinica.nome}
         </span>
 

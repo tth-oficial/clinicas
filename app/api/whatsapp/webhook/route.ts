@@ -1,20 +1,28 @@
 import { NextRequest } from 'next/server'
+import { timingSafeEqual, createHash } from 'crypto'
 import { createClient as createServerClient } from '@/lib/supabase/server'
+
+export const maxDuration = 60
 
 // ─── Validação de assinatura ──────────────────────────────────────────────────
 
-function isValidSignature(
-  signature: string | null,
-  body: string
-): boolean {
-  const secret = process.env.WEBHOOK_SECRET
-  // Se o secret não foi configurado, aceita (desenvolvimento)
-  if (!secret || secret === 'trocar_por_string_aleatoria_forte') return true
-  if (!signature) return false
+function safeCompare(a: string, b: string): boolean {
+  const aHash = createHash('sha256').update(a).digest()
+  const bHash = createHash('sha256').update(b).digest()
+  return timingSafeEqual(aHash, bHash)
+}
 
-  // A Evolution API envia o secret diretamente no header
-  // Ajuste aqui se usar HMAC-SHA256 customizado
-  return signature === secret
+function isValidSignature(signature: string | null): boolean {
+  const secret = process.env.WEBHOOK_SECRET
+  if (!secret || secret === 'trocar_por_string_aleatoria_forte') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Webhook] WEBHOOK_SECRET não configurado em produção!')
+      return false
+    }
+    return true
+  }
+  if (!signature) return false
+  return safeCompare(signature, secret)
 }
 
 // ─── POST /api/whatsapp/webhook ───────────────────────────────────────────────
@@ -24,7 +32,7 @@ export async function POST(request: NextRequest) {
   const bodyText = await request.text()
   const signature = request.headers.get('x-webhook-signature')
 
-  if (!isValidSignature(signature, bodyText)) {
+  if (!isValidSignature(signature)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

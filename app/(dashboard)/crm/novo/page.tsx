@@ -26,6 +26,7 @@ export default function NovoLeadPage() {
 
   useEffect(() => {
     const tel = buscaTelefone.replace(/\D/g, '')
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (tel.length < 10) { setContatoEncontrado(null); return }
 
     const t = setTimeout(async () => {

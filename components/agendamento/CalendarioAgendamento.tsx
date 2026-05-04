@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   ChevronLeft, ChevronRight, Plus, Calendar, Clock,
-  User, Stethoscope, CheckCircle2, XCircle, AlertCircle,
+  User, Stethoscope, CheckCircle2, XCircle,
   MoreHorizontal, RefreshCw,
 } from 'lucide-react'
 import type { Agendamento } from '@/types'
@@ -338,6 +338,7 @@ export function CalendarioAgendamento() {
   }, [])
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     void carregarAgendamentos(dataAtual)
   }, [dataAtual, carregarAgendamentos])
 

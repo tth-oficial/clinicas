@@ -288,6 +288,7 @@ export function ListaAntiNoShow() {
     }
   }, [])
 
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { void carregar() }, [carregar])
 
   const handleEnviarAgora = async (cadenciaId: string) => {

@@ -16,29 +16,34 @@ export class EvolutionAPI {
 
   private async request<T>(
     path: string,
-    options?: RequestInit
+    options?: RequestInit,
+    retries = 2
   ): Promise<T> {
     const url = `${this.baseUrl}${path}`
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: this.config.apiKey,
-        ...options?.headers,
-      },
-    })
-
-    if (!response.ok) {
-      const body = await response.text()
-      console.error('[Evolution] Erro na requisição', {
-        url,
-        status: response.status,
-        body,
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: this.config.apiKey,
+          ...options?.headers,
+        },
       })
-      throw new Error(`Evolution API error ${response.status}: ${body}`)
-    }
 
-    return response.json() as Promise<T>
+      if (!response.ok) {
+        const body = await response.text()
+        console.error('[Evolution] Erro na requisição', { url, status: response.status, body })
+        throw new Error(`Evolution API error ${response.status}: ${body}`)
+      }
+
+      return response.json() as Promise<T>
+    } catch (err) {
+      if (retries > 0) {
+        await new Promise((r) => setTimeout(r, 500))
+        return this.request<T>(path, options, retries - 1)
+      }
+      throw err
+    }
   }
 
   /**

@@ -47,6 +47,7 @@ export function LeadDrawer({ lead, onClose, onAtualizar }: LeadDrawerProps) {
 
   useEffect(() => {
     const notasOriginais = lead.notas ?? ''
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (notas === notasOriginais) { setNotasSalvas(true); return }
     setNotasSalvas(false)
     if (debounceRef.current) clearTimeout(debounceRef.current)

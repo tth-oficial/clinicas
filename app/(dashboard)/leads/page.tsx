@@ -43,7 +43,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   // Sem resultados na busca → devolve página vazia
   if (contatoIdsFiltro !== null && contatoIdsFiltro.length === 0) {
     return (
-      <LeadsLayout params={params} total={0}>
+      <LeadsLayout total={0}>
         <FiltrosLeads filtros={params} />
         <LeadsTable leads={[]} total={0} page={page} limit={limit} />
       </LeadsLayout>
@@ -67,7 +67,7 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
   const total = count ?? 0
 
   return (
-    <LeadsLayout params={params} total={total}>
+    <LeadsLayout total={total}>
       <FiltrosLeads filtros={params} />
       <LeadsTable leads={(leads ?? []) as Lead[]} total={total} page={page} limit={limit} />
     </LeadsLayout>
@@ -75,11 +75,9 @@ export default async function LeadsPage({ searchParams }: LeadsPageProps) {
 }
 
 function LeadsLayout({
-  params,
   total,
   children,
 }: {
-  params: { etapa?: string; temperatura?: string; status?: string; busca?: string }
   total: number
   children: React.ReactNode
 }) {

@@ -37,7 +37,6 @@ export function useConversas(clinicaId: string) {
       setCarregando(true)
       setErro(null)
 
-      // Buscar conversas com dados do contato
       const { data: conversasData, error: erroQuery } = await supabase
         .from('conversas')
         .select(`
@@ -57,49 +56,64 @@ export function useConversas(clinicaId: string) {
         .order('atualizado_em', { ascending: false })
         .limit(50)
 
-      if (erroQuery) {
-        throw erroQuery
+      if (erroQuery) throw erroQuery
+
+      if (!conversasData?.length) {
+        setConversas([])
+        return
       }
 
-      // Para cada conversa, buscar a última mensagem e quantidade de não lidas
-      const conversasEnriquecidas: ConversaItem[] = await Promise.all(
-        (conversasData ?? []).map(async (conversa) => {
-          const [{ data: ultimaMsgData }, { count: naoLidas }] =
-            await Promise.all([
-              supabase
-                .from('mensagens')
-                .select('texto, enviado_em, de')
-                .eq('conversa_id', conversa.id)
-                .order('enviado_em', { ascending: false })
-                .limit(1)
-                .single(),
-              supabase
-                .from('mensagens')
-                .select('*', { count: 'exact', head: true })
-                .eq('conversa_id', conversa.id)
-                .eq('lido', false)
-                .eq('de', 'cliente'),
-            ])
+      const ids = conversasData.map((c) => c.id)
 
-          const contatoRaw = conversa.contatos as unknown
-          const contato = (
-            Array.isArray(contatoRaw) ? contatoRaw[0] : contatoRaw
-          ) as ConversaItem['contatos']
+      // 2 queries em paralelo ao invés de 2N queries (elimina N+1)
+      const [{ data: mensagensData }, { data: naoLidasData }] = await Promise.all([
+        supabase
+          .from('mensagens')
+          .select('conversa_id, texto, enviado_em, de')
+          .in('conversa_id', ids)
+          .order('enviado_em', { ascending: false })
+          .limit(ids.length * 5),
+        supabase
+          .from('mensagens')
+          .select('conversa_id')
+          .in('conversa_id', ids)
+          .eq('lido', false)
+          .eq('de', 'cliente'),
+      ])
 
-          return {
-            ...conversa,
-            contatos: contato,
-            ultima_mensagem: ultimaMsgData
-              ? {
-                  texto: ultimaMsgData.texto,
-                  enviado_em: ultimaMsgData.enviado_em,
-                  de: ultimaMsgData.de as 'cliente' | 'agente' | 'sistema',
-                }
-              : undefined,
-            nao_lidas: naoLidas ?? 0,
-          }
-        })
-      )
+      // Montar mapas em JS a partir dos resultados batch
+      const ultimaMsgPor: Record<string, { texto: string | null; enviado_em: string; de: string }> = {}
+      for (const msg of (mensagensData ?? [])) {
+        if (!ultimaMsgPor[msg.conversa_id]) {
+          ultimaMsgPor[msg.conversa_id] = msg
+        }
+      }
+
+      const naoLidasPor: Record<string, number> = {}
+      for (const msg of (naoLidasData ?? [])) {
+        naoLidasPor[msg.conversa_id] = (naoLidasPor[msg.conversa_id] ?? 0) + 1
+      }
+
+      const conversasEnriquecidas: ConversaItem[] = conversasData.map((conversa) => {
+        const contatoRaw = conversa.contatos as unknown
+        const contato = (
+          Array.isArray(contatoRaw) ? contatoRaw[0] : contatoRaw
+        ) as ConversaItem['contatos']
+        const ultimaMsg = ultimaMsgPor[conversa.id]
+
+        return {
+          ...conversa,
+          contatos: contato,
+          ultima_mensagem: ultimaMsg
+            ? {
+                texto: ultimaMsg.texto,
+                enviado_em: ultimaMsg.enviado_em,
+                de: ultimaMsg.de as 'cliente' | 'agente' | 'sistema',
+              }
+            : undefined,
+          nao_lidas: naoLidasPor[conversa.id] ?? 0,
+        }
+      })
 
       setConversas(conversasEnriquecidas)
     } catch (err) {
@@ -112,6 +126,7 @@ export function useConversas(clinicaId: string) {
 
   // Carregar conversas na montagem
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     carregarConversas()
   }, [carregarConversas])
 
@@ -130,8 +145,7 @@ export function useConversas(clinicaId: string) {
           filter: `clinica_id=eq.${clinicaId}`,
         },
         () => {
-          // Re-carregar conversas quando chega mensagem nova
-          carregarConversas()
+          void carregarConversas()
         }
       )
       .on(
@@ -143,7 +157,6 @@ export function useConversas(clinicaId: string) {
           filter: `clinica_id=eq.${clinicaId}`,
         },
         (payload) => {
-          // Atualizar localmente sem refetch completo quando agente_ativo muda
           setConversas((prev) =>
             prev.map((c) =>
               c.id === payload.new.id

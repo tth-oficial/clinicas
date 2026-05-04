@@ -1,18 +1,33 @@
 import { NextRequest } from 'next/server'
+import { timingSafeEqual, createHash } from 'crypto'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { processarMensagem } from '@/lib/openai'
 import { createEvolutionClient } from '@/lib/evolution'
 
+export const maxDuration = 60
+
 // ─── Validação de segurança ───────────────────────────────────────────────────
+
+function safeCompare(a: string, b: string): boolean {
+  const aHash = createHash('sha256').update(a).digest()
+  const bHash = createHash('sha256').update(b).digest()
+  return timingSafeEqual(aHash, bHash)
+}
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = request.headers.get('x-internal-secret')
   const cronSecret = process.env.CRON_SECRET
 
-  // Em desenvolvimento (sem secret configurado ou com placeholder), aceita sempre
-  if (!cronSecret || cronSecret === 'trocar_por_string_aleatoria_forte') return true
+  if (!cronSecret || cronSecret === 'trocar_por_string_aleatoria_forte') {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Agente] CRON_SECRET não configurado em produção!')
+      return false
+    }
+    return true
+  }
 
-  return secret === cronSecret
+  if (!secret) return false
+  return safeCompare(secret, cronSecret)
 }
 
 // ─── POST /api/agente/processar ───────────────────────────────────────────────

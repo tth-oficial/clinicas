@@ -41,7 +41,6 @@ export function useLeads(filtros: FiltrosLeads = {}) {
     } finally {
       setLoading(false)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtros.etapa, filtros.temperatura, filtros.status, filtros.busca, filtros.page, filtros.limit])
 
   // eslint-disable-next-line
