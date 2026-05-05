@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { timingSafeEqual, createHash } from 'crypto'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { processarMensagem } from '@/lib/openai'
 import { createEvolutionClient } from '@/lib/evolution'
 
@@ -61,7 +61,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = await createServerClient()
+    // Endpoint disparado pelo webhook — usar service role para contornar RLS
+    const supabase = createAdminClient()
 
     // 2. Verificar se agente está ativo (humano pode ter assumido)
     const { data: conversa } = await supabase

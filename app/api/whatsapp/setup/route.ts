@@ -82,7 +82,18 @@ export async function POST(request: NextRequest) {
       (request.headers.get('origin') ?? 'http://localhost:3000')
 
     const webhookUrl = `${appUrl}/api/whatsapp/webhook?clinicaId=${clinicaId}`
-    await evolution.setWebhook(webhookUrl)
+
+    // Se WEBHOOK_SECRET estiver configurado, repassa para a Evolution incluir
+    // como header x-webhook-signature em todo POST. Sem isso, o handler
+    // rejeita as requests com 401.
+    const webhookSecret = process.env.WEBHOOK_SECRET
+    const secretParaWebhook =
+      webhookSecret &&
+      webhookSecret !== 'trocar_por_string_aleatoria_forte'
+        ? webhookSecret
+        : undefined
+
+    await evolution.setWebhook(webhookUrl, secretParaWebhook)
 
     // 5b. Configurar definições da instância (ignorar grupos, rejeitar chamadas)
     await evolution.configureSettings()

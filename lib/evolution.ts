@@ -1,4 +1,4 @@
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { ClinicaConfig } from '@/types'
 
 export interface EvolutionConfig {
@@ -200,18 +200,33 @@ export class EvolutionAPI {
    * Configura o webhook da instância para receber eventos de mensagens.
    * Chamado automaticamente no fluxo de onboarding de cada clínica.
    * @param webhookUrl URL completa incluindo ?clinicaId=xxx
+   * @param signatureSecret Se informado, é enviado pela Evolution como header
+   *   `x-webhook-signature` em todo POST do webhook. Deve ser igual ao
+   *   `WEBHOOK_SECRET` do app para o handler aceitar a request.
+   *
+   * IMPORTANTE: byEvents PRECISA ser false. Quando true, a Evolution
+   * acrescenta o slug do evento à URL (ex: /webhook/messages-upsert), o que
+   * faz o Next.js retornar 404 — mensagens recebidas nunca chegam ao handler.
+   *
+   * Evolution API v2 usa `byEvents` e `base64` no payload de entrada
+   * (mas armazena/retorna como `webhookByEvents` e `webhookBase64`).
    */
-  async setWebhook(webhookUrl: string): Promise<void> {
+  async setWebhook(webhookUrl: string, signatureSecret?: string): Promise<void> {
+    const headers = signatureSecret
+      ? { 'x-webhook-signature': signatureSecret }
+      : undefined
+
     await this.request(`/webhook/set/${this.config.instance}`, {
       method: 'POST',
       body: JSON.stringify({
         webhook: {
           enabled: true,
           url: webhookUrl,
-          webhookByEvents: true,
-          webhookBase64: true, // "ligar o base 64"
+          headers,
+          byEvents: false,
+          base64: true,
           events: [
-            'MESSAGES_UPSERT', // "ativar MESSAGES_UPSERT"
+            'MESSAGES_UPSERT',
             'CONNECTION_UPDATE',
           ],
         },
@@ -227,7 +242,9 @@ export class EvolutionAPI {
 export async function createEvolutionClient(
   clinicaId: string
 ): Promise<EvolutionAPI> {
-  const supabase = await createServerClient()
+  // Service role: este factory é chamado em handlers server-to-server
+  // (webhook, agente/processar, cron) onde não há sessão de usuário.
+  const supabase = createAdminClient()
 
   const { data: config } = await supabase
     .from('clinica_config')

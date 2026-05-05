@@ -1,5 +1,5 @@
 import OpenAI from 'openai'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import type { ClinicaConfig, Contato } from '@/types'
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -104,7 +104,8 @@ export async function processarMensagem(
 ): Promise<ProcessarMensagemOutput> {
   const { clinicaId, conversaId, mensagemUsuario, contato } = input
 
-  const supabase = await createServerClient()
+  // Chamado a partir do webhook (server-to-server) — service role para RLS
+  const supabase = createAdminClient()
 
   // 1. Buscar config da clínica (prompt, tom, nome, key)
   const { data: configData, error: configError } = await supabase

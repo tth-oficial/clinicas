@@ -1,6 +1,6 @@
 import { NextRequest } from 'next/server'
 import { timingSafeEqual, createHash } from 'crypto'
-import { createClient as createServerClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 export const maxDuration = 60
 
@@ -46,22 +46,24 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  // 2. Processar apenas mensagens recebidas (maiúsculas ou minúsculas)
-  const eventName = (evento.event as string || '').toUpperCase()
-  if (eventName !== 'MESSAGES.UPSERT' && eventName !== 'MESSAGES_UPSERT') {
+  // 2. Processar apenas mensagens recebidas — normaliza separadores (.,_,-)
+  // Evolution pode enviar: "messages.upsert", "MESSAGES_UPSERT", "messages-upsert"
+  const eventRaw = (evento.event as string | undefined) ?? ''
+  const eventName = eventRaw.toUpperCase().replace(/[.\-]/g, '_')
+  if (eventName !== 'MESSAGES_UPSERT') {
     return Response.json({ ok: true })
   }
 
   const data = evento.data as Record<string, unknown> | undefined
   if (!data) return Response.json({ ok: true })
 
-  // 3. Ignorar mensagens próprias
-  if (data.fromMe === true) {
+  // 3. Extrair key e ignorar mensagens próprias (fromMe fica em data.key.fromMe)
+  const key = data.key as Record<string, unknown> | undefined
+  if (key?.fromMe === true || data.fromMe === true) {
     return Response.json({ ok: true })
   }
 
   // 4. Extrair dados da mensagem
-  const key = data.key as Record<string, unknown> | undefined
   const message = data.message as Record<string, unknown> | undefined
   const pushName = (data.pushName as string | undefined) ?? ''
   const remoteJid =
@@ -79,9 +81,23 @@ export async function POST(request: NextRequest) {
     (message?.conversation as string | undefined) ??
     ((message?.extendedTextMessage as Record<string, unknown> | undefined)
       ?.text as string | undefined) ??
+    ((message?.imageMessage as Record<string, unknown> | undefined)
+      ?.caption as string | undefined) ??
+    ((message?.videoMessage as Record<string, unknown> | undefined)
+      ?.caption as string | undefined) ??
+    ((message?.documentMessage as Record<string, unknown> | undefined)
+      ?.caption as string | undefined) ??
+    ((message?.buttonsResponseMessage as Record<string, unknown> | undefined)
+      ?.selectedDisplayText as string | undefined) ??
+    ((message?.listResponseMessage as Record<string, unknown> | undefined)
+      ?.title as string | undefined) ??
     ''
 
   if (!texto.trim()) {
+    console.log('[Webhook] Mensagem sem texto, ignorando', {
+      messageType: data.messageType,
+      keys: message ? Object.keys(message) : [],
+    })
     return Response.json({ ok: true })
   }
 
@@ -97,7 +113,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const supabase = await createServerClient()
+    // Webhook é server-to-server — usar service role para contornar RLS
+    const supabase = createAdminClient()
 
     // 6. Buscar ou criar contato
     let { data: contato } = await supabase
