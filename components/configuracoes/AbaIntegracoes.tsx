@@ -23,7 +23,14 @@ export function AbaIntegracoes({ config, onSalvar }: Props) {
   const [salvando, setSalvando] = useState(false)
   const [mensagem, setMensagem] = useState('')
 
-  const modelos = ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo']
+  const modelos = [
+    { value: 'gpt-4.1',      label: 'GPT-4.1 (Mais recente)' },
+    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Rápido e barato)' },
+    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Ultra rápido)' },
+    { value: 'gpt-4o',       label: 'GPT-4o' },
+    { value: 'gpt-4o-mini',  label: 'GPT-4o Mini' },
+    { value: 'o3-mini',      label: 'o3-mini (Raciocínio)' },
+  ]
 
   async function handleSalvar() {
     setSalvando(true)
@@ -45,7 +52,7 @@ export function AbaIntegracoes({ config, onSalvar }: Props) {
       {/* OpenAI */}
       <section>
         <h3 className="text-sm font-semibold mb-4" style={{ color: 'var(--cor-texto)' }}>
-          OpenAI (GPT-4o)
+          OpenAI
         </h3>
         <div className="space-y-4">
           <div>
@@ -84,7 +91,7 @@ export function AbaIntegracoes({ config, onSalvar }: Props) {
             <select value={form.openai_model} onChange={e => setForm(f => ({ ...f, openai_model: e.target.value }))}
               className="w-full px-3 py-2 rounded-lg border text-sm"
               style={{ borderColor: 'var(--cor-borda)', color: 'var(--cor-texto)', background: 'var(--cor-card)' }}>
-              {modelos.map(m => <option key={m} value={m}>{m}</option>)}
+              {modelos.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
             </select>
           </div>
         </div>

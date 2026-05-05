@@ -55,7 +55,7 @@ export default function NovoClientePage() {
     agente_prompt: '',
     // Integrações
     openai_api_key: '',
-    openai_model: 'gpt-4o',
+    openai_model: 'gpt-4.1',
     evolution_instance: '',
     evolution_url: '',
     evolution_api_key: '',
@@ -322,7 +322,14 @@ export default function NovoClientePage() {
                 <select value={form.openai_model} onChange={set('openai_model')}
                   className="w-full px-3 py-2 rounded-lg border text-sm"
                   style={{ background: '#0A0F0D', borderColor: '#1F2B27', color: '#E5E7EB' }}>
-                  {['gpt-4o','gpt-4o-mini','gpt-4-turbo'].map(m => <option key={m} value={m}>{m}</option>)}
+                  {[
+                    { value: 'gpt-4.1',      label: 'GPT-4.1 (Mais recente)' },
+                    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini (Rápido e barato)' },
+                    { value: 'gpt-4.1-nano', label: 'GPT-4.1 Nano (Ultra rápido)' },
+                    { value: 'gpt-4o',       label: 'GPT-4o' },
+                    { value: 'gpt-4o-mini',  label: 'GPT-4o Mini' },
+                    { value: 'o3-mini',      label: 'o3-mini (Raciocínio)' },
+                  ].map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                 </select>
               </div>
             </div>

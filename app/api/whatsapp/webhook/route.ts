@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { timingSafeEqual, createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { detectarRespostaAntiNoshow, detectarEngajamentoFollowup } from '@/lib/cadencia-ia'
 
 export const maxDuration = 60
 
@@ -209,7 +210,104 @@ export async function POST(request: NextRequest) {
       console.error('[Webhook] Erro ao salvar mensagem', erroMensagem)
     }
 
-    // 9. Disparar processamento do agente sem bloquear o webhook
+    // 9. ── Detecção de respostas a cadências ativas ────────────────────────
+    // Verifica se o contato tem cadência ativa e processa a resposta antes
+    // de passar ao agente IA
+
+    const { data: cadenciaAtiva } = await supabase
+      .from('cadencias')
+      .select('id, tipo, agendamento_id')
+      .eq('clinica_id', clinicaId)
+      .eq('contato_id', contato.id)
+      .eq('status', 'ativa')
+      .order('criado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    if (cadenciaAtiva) {
+      if (cadenciaAtiva.tipo === 'anti_noshow') {
+        const resposta = detectarRespostaAntiNoshow(texto)
+
+        if (resposta === 'confirmar' && cadenciaAtiva.agendamento_id) {
+          // Confirmar presença: atualizar agendamento + encerrar cadência
+          await supabase
+            .from('agendamentos')
+            .update({ status: 'confirmado', atualizado_em: new Date().toISOString() })
+            .eq('id', cadenciaAtiva.agendamento_id)
+
+          await supabase
+            .from('cadencias')
+            .update({ status: 'concluida', atualizado_em: new Date().toISOString() })
+            .eq('id', cadenciaAtiva.id)
+
+          await supabase.from('mensagens').insert({
+            conversa_id: conversa.id,
+            clinica_id: clinicaId,
+            de: 'sistema',
+            texto: '✅ Presença confirmada automaticamente pelo paciente.',
+            enviado_em: new Date().toISOString(),
+            lido: true,
+          })
+
+          console.log(`[Webhook] Agendamento ${cadenciaAtiva.agendamento_id} confirmado automaticamente`)
+          return Response.json({ ok: true, acao: 'presenca_confirmada' })
+        }
+
+        if (resposta === 'cancelar' && cadenciaAtiva.agendamento_id) {
+          // Cancelar agendamento + encerrar cadência + notificar agente para contato
+          await supabase
+            .from('agendamentos')
+            .update({ status: 'cancelado', atualizado_em: new Date().toISOString() })
+            .eq('id', cadenciaAtiva.agendamento_id)
+
+          await supabase
+            .from('cadencias')
+            .update({ status: 'cancelada', atualizado_em: new Date().toISOString() })
+            .eq('id', cadenciaAtiva.id)
+
+          await supabase.from('mensagens').insert({
+            conversa_id: conversa.id,
+            clinica_id: clinicaId,
+            de: 'sistema',
+            texto: '❌ Agendamento cancelado pelo paciente via resposta de confirmação.',
+            enviado_em: new Date().toISOString(),
+            lido: true,
+          })
+
+          console.log(`[Webhook] Agendamento ${cadenciaAtiva.agendamento_id} cancelado automaticamente`)
+          // Deixa o agente responder para oferecer reagendamento
+        }
+      } else if (
+        cadenciaAtiva.tipo === 'followup' ||
+        cadenciaAtiva.tipo === 'nutricao'
+      ) {
+        if (detectarEngajamentoFollowup(texto)) {
+          // Paciente engajou — pausar cadência e deixar o agente IA assumir
+          await supabase
+            .from('cadencias')
+            .update({ status: 'pausada', atualizado_em: new Date().toISOString() })
+            .eq('id', cadenciaAtiva.id)
+
+          // Atualizar lead para em_contato se estava parado
+          const { data: cad } = await supabase
+            .from('cadencias')
+            .select('lead_id')
+            .eq('id', cadenciaAtiva.id)
+            .single()
+
+          if (cad?.lead_id) {
+            await supabase
+              .from('leads')
+              .update({ status: 'em_contato', temperatura: 'morno', atualizado_em: new Date().toISOString() })
+              .eq('id', cad.lead_id)
+          }
+
+          console.log(`[Webhook] Cadência ${cadenciaAtiva.id} pausada — paciente engajou, agente IA assumindo`)
+        }
+      }
+    }
+
+    // 10. Disparar processamento do agente sem bloquear o webhook
     // Usa fetch interno para garantir que o Vercel não mate o processo
     const appUrl =
       process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
@@ -225,6 +323,7 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         clinicaId,
         conversaId: conversa.id,
+        contatoId: contato.id,
         texto,
         contato: {
           nome: contato.nome,
@@ -241,3 +340,4 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Erro interno' }, { status: 500 })
   }
 }
+

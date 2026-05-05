@@ -35,6 +35,9 @@ export interface ClinicaConfig {
   modulos_ativos: string[]
   google_calendar_token: Record<string, unknown> | null
   google_calendar_id: string | null
+  // Escalação para humano
+  telefone_escalacao: string | null
+  notificar_escalacao: boolean
   atualizado_em: string
 }
 

@@ -54,6 +54,7 @@ export async function PATCH(request: NextRequest) {
       'evolution_url', 'evolution_api_key', 'evolution_instance',
       'agente_nome', 'agente_prompt', 'agente_tom',
       'modulos_ativos', 'google_calendar_id',
+      'telefone_escalacao', 'notificar_escalacao',
     ]
 
     // Campos da tabela clinicas

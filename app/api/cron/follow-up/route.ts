@@ -1,5 +1,6 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createEvolutionClient } from '@/lib/evolution'
+import { personalizarMensagemCadencia, detectarEngajamentoFollowup } from '@/lib/cadencia-ia'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ─────────────────────────────────────────────
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const agora = new Date()
   const doisDiasAtras = new Date(agora)
   doisDiasAtras.setDate(doisDiasAtras.getDate() - 2)
@@ -128,6 +129,31 @@ export async function GET(request: NextRequest) {
           const etapaAtual = etapas.find(e => e.numero === cad.etapa_atual + 1 && e.status === 'pendente')
           if (!etapaAtual) continue
 
+          // ── Verificar se contato engajou recentemente (última msg < 24h) ──
+          const { data: ultimaMsgContato } = await supabase
+            .from('mensagens')
+            .select('texto, enviado_em')
+            .eq('clinica_id', cad.clinica_id)
+            .eq('de', 'cliente')
+            .order('enviado_em', { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          if (ultimaMsgContato) {
+            const ultimaMsg = new Date(ultimaMsgContato.enviado_em)
+            const horasPassadas = (agora.getTime() - ultimaMsg.getTime()) / (1000 * 60 * 60)
+            // Se engajou nas últimas 24h — pausar cadência, agente IA já está cuidando
+            if (horasPassadas < 24 && detectarEngajamentoFollowup(ultimaMsgContato.texto)) {
+              await supabase
+                .from('cadencias')
+                .update({ status: 'pausada', atualizado_em: agora.toISOString() })
+                .eq('id', cad.id)
+              console.log(`[cron/follow-up] Cadência ${cad.id} pausada — contato engajou recentemente`)
+              enviados++
+              continue
+            }
+          }
+
           let evolution
           try {
             evolution = await createEvolutionClient(cad.clinica_id)
@@ -136,7 +162,18 @@ export async function GET(request: NextRequest) {
             continue
           }
 
-          await evolution.sendText(contato.telefone, etapaAtual.mensagem_template)
+          // ── Personalizar mensagem com IA ──────────────────────────────────
+          const totalEtapas = etapas.length
+          const mensagemPersonalizada = await personalizarMensagemCadencia(
+            cad.clinica_id,
+            cad.contato_id,
+            etapaAtual.mensagem_template,
+            'followup',
+            etapaAtual.numero,
+            totalEtapas
+          )
+
+          await evolution.sendText(contato.telefone, mensagemPersonalizada)
 
           await supabase
             .from('cadencia_etapas')

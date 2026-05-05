@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import {
-  Palette, Bot, MessageSquare, Zap, Link2, CreditCard, Loader2
+  Palette, Bot, MessageSquare, Zap, Link2, CreditCard,
+  Users, Scissors, Clock, Loader2,
 } from 'lucide-react'
 import { AbaIdentidade } from '@/components/configuracoes/AbaIdentidade'
 import { AbaAgenteIA } from '@/components/configuracoes/AbaAgenteIA'
@@ -10,21 +11,29 @@ import { AbaWhatsApp } from '@/components/configuracoes/AbaWhatsApp'
 import { AbaAutomacoes } from '@/components/configuracoes/AbaAutomacoes'
 import { AbaIntegracoes } from '@/components/configuracoes/AbaIntegracoes'
 import { AbaPlano } from '@/components/configuracoes/AbaPlano'
+import { AbaEquipe } from '@/components/configuracoes/AbaEquipe'
+import { AbaServicos } from '@/components/configuracoes/AbaServicos'
+import { AbaHorarios } from '@/components/configuracoes/AbaHorarios'
 import type { ClinicaConfig, Clinica } from '@/types'
 
-type Aba = 'identidade' | 'agente' | 'whatsapp' | 'automacoes' | 'integracoes' | 'plano'
+type Aba =
+  | 'identidade' | 'agente' | 'whatsapp' | 'automacoes'
+  | 'integracoes' | 'plano' | 'equipe' | 'servicos' | 'horarios'
 
 interface DadosConfig extends ClinicaConfig {
   clinica: Clinica
 }
 
 const ABAS: { id: Aba; label: string; Icon: React.ComponentType<{ size?: number }> }[] = [
-  { id: 'identidade',   label: 'Identidade',    Icon: Palette },
-  { id: 'agente',       label: 'Agente IA',     Icon: Bot },
-  { id: 'whatsapp',     label: 'WhatsApp',      Icon: MessageSquare },
-  { id: 'automacoes',   label: 'Automações',    Icon: Zap },
-  { id: 'integracoes',  label: 'Integrações',   Icon: Link2 },
-  { id: 'plano',        label: 'Plano',         Icon: CreditCard },
+  { id: 'identidade',  label: 'Identidade',  Icon: Palette },
+  { id: 'agente',      label: 'Agente IA',   Icon: Bot },
+  { id: 'equipe',      label: 'Equipe',       Icon: Users },
+  { id: 'servicos',    label: 'Serviços',     Icon: Scissors },
+  { id: 'horarios',    label: 'Horários',     Icon: Clock },
+  { id: 'whatsapp',    label: 'WhatsApp',     Icon: MessageSquare },
+  { id: 'automacoes',  label: 'Automações',   Icon: Zap },
+  { id: 'integracoes', label: 'Integrações',  Icon: Link2 },
+  { id: 'plano',       label: 'Plano',        Icon: CreditCard },
 ]
 
 export default function ConfiguracoesPage() {
@@ -68,6 +77,9 @@ export default function ConfiguracoesPage() {
     )
   }
 
+  // Abas que não dependem de `dados` (buscam própria API)
+  const abasAutonomas: Aba[] = ['equipe', 'servicos', 'horarios', 'whatsapp']
+
   return (
     <div className="space-y-6">
       {/* Tabs */}
@@ -97,21 +109,12 @@ export default function ConfiguracoesPage() {
         className="rounded-2xl border p-6"
         style={{ background: 'var(--cor-card)', borderColor: 'var(--cor-borda)' }}
       >
+        {/* Abas com config global */}
         {abaAtiva === 'identidade' && (
-          <AbaIdentidade
-            config={dados}
-            clinica={dados.clinica}
-            onSalvar={salvar}
-          />
+          <AbaIdentidade config={dados} clinica={dados.clinica} onSalvar={salvar} />
         )}
         {abaAtiva === 'agente' && (
-          <AbaAgenteIA
-            config={dados}
-            onSalvar={salvar}
-          />
-        )}
-        {abaAtiva === 'whatsapp' && (
-          <AbaWhatsApp clinicaId={dados.clinica_id} />
+          <AbaAgenteIA config={dados} onSalvar={salvar} />
         )}
         {abaAtiva === 'automacoes' && (
           <AbaAutomacoes
@@ -121,18 +124,17 @@ export default function ConfiguracoesPage() {
           />
         )}
         {abaAtiva === 'integracoes' && (
-          <AbaIntegracoes
-            config={dados}
-            onSalvar={salvar}
-          />
+          <AbaIntegracoes config={dados} onSalvar={salvar} />
         )}
         {abaAtiva === 'plano' && (
-          <AbaPlano
-            config={dados}
-            clinica={dados.clinica}
-            onSalvar={salvar}
-          />
+          <AbaPlano config={dados} clinica={dados.clinica} onSalvar={salvar} />
         )}
+
+        {/* Abas autônomas (buscam sua própria API) */}
+        {abaAtiva === 'whatsapp' && <AbaWhatsApp clinicaId={dados.clinica_id} />}
+        {abaAtiva === 'equipe'   && <AbaEquipe config={dados} onSalvar={salvar} />}
+        {abaAtiva === 'servicos' && <AbaServicos />}
+        {abaAtiva === 'horarios' && <AbaHorarios />}
       </div>
     </div>
   )

@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
   let body: {
     clinicaId: string
     conversaId: string
+    contatoId: string
     texto: string
     contato: { nome: string; telefone: string }
   }
@@ -51,41 +52,40 @@ export async function POST(request: NextRequest) {
     return Response.json({ error: 'Body inválido' }, { status: 400 })
   }
 
-  const { clinicaId, conversaId, texto, contato } = body
+  const { clinicaId, conversaId, contatoId, texto, contato } = body
 
-  if (!clinicaId || !conversaId || !texto || !contato) {
+  if (!clinicaId || !conversaId || !contatoId || !texto || !contato) {
     return Response.json(
-      { error: 'clinicaId, conversaId, texto e contato são obrigatórios' },
+      { error: 'clinicaId, conversaId, contatoId, texto e contato são obrigatórios' },
       { status: 400 }
     )
   }
 
   try {
-    // Endpoint disparado pelo webhook — usar service role para contornar RLS
     const supabase = createAdminClient()
 
     // 2. Verificar se agente está ativo (humano pode ter assumido)
     const { data: conversa } = await supabase
       .from('conversas')
-      .select('agente_ativo')
+      .select('agente_ativo, status')
       .eq('id', conversaId)
       .single()
 
-    if (conversa && conversa.agente_ativo === false) {
-      // Humano assumiu — não processar com IA
+    if (!conversa || conversa.agente_ativo === false || conversa.status === 'aguardando_humano') {
       return Response.json({ ok: true, motivo: 'humano_ativo' })
     }
 
-    // 3. Processar mensagem com IA
+    // 3. Processar mensagem com IA (function calling loop)
     const resultado = await processarMensagem({
       clinicaId,
       conversaId,
+      contatoId,
       mensagemUsuario: texto,
       contato,
     })
 
     // 4. Salvar resposta do agente no Supabase
-    const { error: erroMensagem } = await supabase.from('mensagens').insert({
+    await supabase.from('mensagens').insert({
       conversa_id: conversaId,
       clinica_id: clinicaId,
       de: 'agente',
@@ -94,87 +94,23 @@ export async function POST(request: NextRequest) {
       lido: true,
     })
 
-    if (erroMensagem) {
-      console.error('[Agente] Erro ao salvar resposta', erroMensagem)
+    // 5. Atualizar timestamp da conversa + status se escalado
+    const updateConversa: Record<string, unknown> = {
+      atualizado_em: new Date().toISOString(),
     }
 
-    // 5. Atualizar timestamp da conversa
+    if (resultado.escalado) {
+      // escalarParaHumano() já atualizou agente_ativo e status
+      // Apenas garantir consistência
+      updateConversa.status = 'aguardando_humano'
+    }
+
     await supabase
       .from('conversas')
-      .update({ atualizado_em: new Date().toISOString() })
+      .update(updateConversa)
       .eq('id', conversaId)
 
-    // 6. Executar ações do agente
-    const acoes = resultado.acoes ?? {}
-
-    // 6a. Escalar para humano
-    if (acoes.escalarHumano) {
-      await supabase
-        .from('conversas')
-        .update({ agente_ativo: false })
-        .eq('id', conversaId)
-
-      // Salvar mensagem de sistema
-      await supabase.from('mensagens').insert({
-        conversa_id: conversaId,
-        clinica_id: clinicaId,
-        de: 'sistema',
-        texto: 'Paciente solicitou atendimento humano. Agente IA pausado.',
-        enviado_em: new Date().toISOString(),
-        lido: true,
-      })
-    }
-
-    // 6b. Atualizar lead
-    if (acoes.atualizarLead) {
-      const { etapa, temperatura } = acoes.atualizarLead
-
-      // Buscar lead pelo contato e clínica
-      const { data: conversaComContato } = await supabase
-        .from('conversas')
-        .select('contato_id')
-        .eq('id', conversaId)
-        .single()
-
-      if (conversaComContato?.contato_id) {
-        const updatePayload: Record<string, string> = {
-          atualizado_em: new Date().toISOString(),
-        }
-        if (etapa) updatePayload.etapa = etapa
-        if (temperatura) updatePayload.temperatura = temperatura
-
-        await supabase
-          .from('leads')
-          .update(updatePayload)
-          .eq('contato_id', conversaComContato.contato_id)
-          .eq('clinica_id', clinicaId)
-      }
-    }
-
-    // 6c. Criar agendamento (registro básico para equipe revisar)
-    if (acoes.criarAgendamento) {
-      const { servico, preferencia } = acoes.criarAgendamento
-
-      const { data: conversaComContato } = await supabase
-        .from('conversas')
-        .select('contato_id')
-        .eq('id', conversaId)
-        .single()
-
-      if (conversaComContato?.contato_id) {
-        await supabase.from('agendamentos').insert({
-          clinica_id: clinicaId,
-          contato_id: conversaComContato.contato_id,
-          servico,
-          status: 'agendado',
-          data_hora: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // placeholder +1d
-          duracao_minutos: 60,
-          notas: `Preferência informada pelo paciente via WhatsApp: ${preferencia}`,
-        })
-      }
-    }
-
-    // 7. Enviar resposta via Evolution API
+    // 6. Enviar resposta via Evolution API
     try {
       const evolution = await createEvolutionClient(clinicaId)
       await evolution.sendText(contato.telefone, resultado.resposta)
@@ -183,7 +119,11 @@ export async function POST(request: NextRequest) {
       // Não falha o fluxo — mensagem já foi salva no banco
     }
 
-    return Response.json({ ok: true, acoes })
+    return Response.json({
+      ok: true,
+      ferramentas_usadas: resultado.ferramentasUsadas,
+      escalado: resultado.escalado,
+    })
   } catch (err) {
     console.error('[Agente] Erro crítico ao processar mensagem', err)
     return Response.json(

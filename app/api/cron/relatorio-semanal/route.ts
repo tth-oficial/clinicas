@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createEvolutionClient } from '@/lib/evolution'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
-  const supabase = await createClient()
+  const supabase = createAdminClient()
   const agora = new Date()
 
   // Calcular semana anterior (segunda a domingo)
