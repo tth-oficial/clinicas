@@ -8,6 +8,9 @@ interface Profissional {
   id: string
   nome: string
   especialidade: string
+  telefone: string
+  email: string
+  cor: string
   bio: string
   ativo: boolean
 }
@@ -17,9 +20,14 @@ interface Props {
   onSalvar?: (dados: Partial<ClinicaConfig>) => Promise<void>
 }
 
+const CORES_PADRAO = ['#2D8B73', '#1B5E4F', '#7B2D8B', '#D97706', '#2563EB', '#DB2777', '#475569']
+
 const empty = (): Omit<Profissional, 'id' | 'ativo'> => ({
   nome: '',
   especialidade: '',
+  telefone: '',
+  email: '',
+  cor: '#2D8B73',
   bio: '',
 })
 
@@ -45,8 +53,8 @@ export function AbaEquipe({ config, onSalvar }: Props) {
     setCarregando(true)
     try {
       const r = await fetch('/api/profissionais')
-      const d = await r.json() as Profissional[]
-      setLista(d)
+      const d = await r.json() as { profissionais?: Profissional[] }
+      setLista(d.profissionais ?? [])
     } finally {
       setCarregando(false)
     }
@@ -61,7 +69,14 @@ export function AbaEquipe({ config, onSalvar }: Props) {
   }
 
   function iniciarEdicao(p: Profissional) {
-    setForm({ nome: p.nome, especialidade: p.especialidade, bio: p.bio })
+    setForm({
+      nome: p.nome ?? '',
+      especialidade: p.especialidade ?? '',
+      telefone: p.telefone ?? '',
+      email: p.email ?? '',
+      cor: p.cor ?? '#2D8B73',
+      bio: p.bio ?? '',
+    })
     setEditando(p.id)
     setMsg('')
   }
@@ -170,6 +185,53 @@ export function AbaEquipe({ config, onSalvar }: Props) {
                   style={{ borderColor: 'var(--cor-borda)', color: 'var(--cor-texto)', background: 'var(--cor-card)' }}
                 />
               </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--cor-texto-suave)' }}>Telefone</label>
+                <input
+                  type="tel"
+                  value={form.telefone}
+                  onChange={e => setForm(f => ({ ...f, telefone: e.target.value }))}
+                  placeholder="(86) 99999-9999"
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ borderColor: 'var(--cor-borda)', color: 'var(--cor-texto)', background: 'var(--cor-card)' }}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1" style={{ color: 'var(--cor-texto-suave)' }}>Email</label>
+                <input
+                  type="email"
+                  value={form.email}
+                  onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                  placeholder="profissional@clinica.com"
+                  className="w-full px-3 py-1.5 rounded-lg border text-sm"
+                  style={{ borderColor: 'var(--cor-borda)', color: 'var(--cor-texto)', background: 'var(--cor-card)' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium mb-1" style={{ color: 'var(--cor-texto-suave)' }}>Cor (calendário)</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {CORES_PADRAO.map(c => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, cor: c }))}
+                    className="w-7 h-7 rounded-full transition-transform hover:scale-110"
+                    style={{
+                      background: c,
+                      border: form.cor === c ? '2px solid var(--cor-texto)' : '2px solid transparent',
+                    }}
+                    aria-label={`Cor ${c}`}
+                  />
+                ))}
+                <input
+                  type="color"
+                  value={form.cor}
+                  onChange={e => setForm(f => ({ ...f, cor: e.target.value }))}
+                  className="w-7 h-7 rounded cursor-pointer border-0 bg-transparent"
+                  aria-label="Cor personalizada"
+                />
+              </div>
             </div>
             <div>
               <label className="block text-xs font-medium mb-1" style={{ color: 'var(--cor-texto-suave)' }}>Bio (apresentada ao paciente)</label>
@@ -223,11 +285,21 @@ export function AbaEquipe({ config, onSalvar }: Props) {
                 className="flex items-center justify-between gap-3 px-4 py-3 rounded-xl border"
                 style={{ borderColor: 'var(--cor-borda)', background: 'var(--cor-card)' }}
               >
-                <div className="min-w-0">
-                  <p className="text-sm font-medium" style={{ color: 'var(--cor-texto)' }}>{p.nome}</p>
-                  {p.especialidade && (
-                    <p className="text-xs mt-0.5" style={{ color: 'var(--cor-texto-suave)' }}>{p.especialidade}</p>
-                  )}
+                <div className="flex items-center gap-3 min-w-0">
+                  <span
+                    className="w-2.5 h-10 rounded-full flex-shrink-0"
+                    style={{ background: p.cor || '#2D8B73' }}
+                    aria-hidden
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium" style={{ color: 'var(--cor-texto)' }}>{p.nome}</p>
+                    {p.especialidade && (
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--cor-texto-suave)' }}>{p.especialidade}</p>
+                    )}
+                    {p.telefone && (
+                      <p className="text-xs mt-0.5 font-mono" style={{ color: 'var(--cor-texto-suave)' }}>{p.telefone}</p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-1 flex-shrink-0">
                   <button

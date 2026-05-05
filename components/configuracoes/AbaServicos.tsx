@@ -31,8 +31,8 @@ export function AbaServicos() {
     setCarregando(true)
     try {
       const r = await fetch('/api/servicos')
-      const d = await r.json() as Servico[]
-      setLista(d)
+      const d = await r.json() as { servicos?: Servico[] }
+      setLista(d.servicos ?? [])
     } finally {
       setCarregando(false)
     }

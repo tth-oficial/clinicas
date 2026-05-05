@@ -24,6 +24,7 @@ export async function PATCH(
       telefone?: string
       email?: string
       cor?: string
+      bio?: string
       ativo?: boolean
     }
 
@@ -45,6 +46,7 @@ export async function PATCH(
     if (body.telefone !== undefined) campos.telefone = body.telefone
     if (body.email !== undefined) campos.email = body.email
     if (body.cor !== undefined) campos.cor = body.cor
+    if (body.bio !== undefined) campos.bio = body.bio
     if (body.ativo !== undefined) campos.ativo = body.ativo
 
     if (Object.keys(campos).length === 0) {

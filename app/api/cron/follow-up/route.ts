@@ -96,11 +96,9 @@ export async function GET(request: NextRequest) {
           },
         ])
 
-        // Já executa a etapa 1 imediatamente (lead parado há 2 dias)
-        await supabase
-          .from('cadencias')
-          .update({ proxima_execucao: d2.toISOString() })
-          .eq('id', cad.id)
+        // proxima_execucao já é `agora` (insert acima) — etapa 1 dispara
+        // no loop de avanço logo abaixo, no mesmo run do cron
+        void d2; void d5
 
         criadas++
       }

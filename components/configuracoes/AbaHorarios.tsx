@@ -38,9 +38,10 @@ export function AbaHorarios() {
   useEffect(() => {
     fetch('/api/horarios')
       .then(r => r.json())
-      .then((data: HorarioDia[]) => {
+      .then((data: { horarios?: HorarioDia[] }) => {
+        const lista = data.horarios ?? []
         // Garantir que todos os 7 dias existam
-        const mapa = new Map(data.map(h => [h.dia_semana, h]))
+        const mapa = new Map(lista.map(h => [h.dia_semana, h]))
         setHorarios(DIAS.map(d => mapa.get(d.id) ?? horarioPadrao(d.id)))
       })
       .catch(() => {/* mantém padrão */})

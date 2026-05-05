@@ -58,6 +58,7 @@ export async function POST(request: NextRequest) {
       telefone?: string
       email?: string
       cor?: string
+      bio?: string
     }
 
     if (!body.nome?.trim()) {
@@ -73,6 +74,7 @@ export async function POST(request: NextRequest) {
         telefone: body.telefone ?? null,
         email: body.email ?? null,
         cor: body.cor ?? '#2D8B73',
+        bio: body.bio ?? null,
         ativo: true,
       })
       .select('*')
