@@ -100,15 +100,15 @@ export async function personalizarMensagemCadencia(
       etapaNumero,
       totalEtapas,
       historicoResumido,
-      nomeAgente: config.agente_nome ?? 'Assistente',
-      tomAgente: config.agente_tom ?? 'profissional e acolhedor',
+      nomeAgente: config?.agente_nome ?? 'Assistente',
+      tomAgente: config?.agente_tom ?? 'profissional e acolhedor',
       nomeClinica: clinica?.nome ?? 'clínica',
     }
 
     // 5. Chamar GPT para personalizar
     const mensagemPersonalizada = await chamarGPTPersonalizacao(
       apiKeyPlain,
-      config.openai_model ?? 'gpt-4o-mini',
+      config?.openai_model ?? 'gpt-4o-mini',
       templateBase,
       contexto
     )
