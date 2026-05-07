@@ -1,14 +1,17 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { sanitizeFilterValue } from '@/lib/sanitize'
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return Response.json({ error: 'Não autorizado' }, { status: 401 })
 
-  const q = request.nextUrl.searchParams.get('q')?.trim()
-  if (!q || q.length < 2) return Response.json({ resultados: [] })
+  const qRaw = request.nextUrl.searchParams.get('q')?.trim()
+  if (!qRaw || qRaw.length < 2) return Response.json({ resultados: [] })
+  const q = sanitizeFilterValue(qRaw)
+  if (q.length < 2) return Response.json({ resultados: [] })
 
   try {
     const clinica = await getClinicaDoUsuario(user.id)

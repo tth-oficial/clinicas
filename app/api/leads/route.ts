@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { sanitizeFilterValue } from '@/lib/sanitize'
 import { NextResponse } from 'next/server'
 import { z } from 'zod'
 
@@ -33,11 +34,12 @@ export async function GET(request: Request) {
   if (status)      query = query.eq('status', status)
 
   if (busca) {
+    const buscaSanitizada = sanitizeFilterValue(busca)
     const { data: contatos } = await supabase
       .from('contatos')
       .select('id')
       .eq('clinica_id', clinica.id)
-      .or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+      .or(`nome.ilike.%${buscaSanitizada}%,telefone.ilike.%${buscaSanitizada}%`)
     const ids = (contatos || []).map(c => c.id)
     if (ids.length === 0) return NextResponse.json({ data: [], count: 0, page, limit })
     query = query.in('contato_id', ids)

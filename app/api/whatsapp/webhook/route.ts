@@ -1,4 +1,4 @@
-import { NextRequest } from 'next/server'
+import { NextRequest, after } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { detectarRespostaAntiNoshow, detectarEngajamentoFollowup } from '@/lib/cadencia-ia'
 import { verifyBody } from '@/lib/webhook-signature'
@@ -311,31 +311,35 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 10. Disparar processamento do agente sem bloquear o webhook
-    // Usa fetch interno para garantir que o Vercel não mate o processo
-    const appUrl =
-      process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
+    // 10. Disparar agente IA após retornar resposta ao webhook.
+    // after() garante que o Vercel mantém o processo vivo até a promise resolver,
+    // evitando o problema do fire-and-forget onde o sandbox podia ser encerrado
+    // antes da subrequest completar.
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
     const cronSecret = process.env.CRON_SECRET ?? ''
 
-    // Não usa await — fire-and-forget para resposta rápida ao webhook
-    fetch(`${appUrl}/api/agente/processar`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-internal-secret': cronSecret,
-      },
-      body: JSON.stringify({
-        clinicaId,
-        conversaId: conversa.id,
-        contatoId: contato.id,
-        texto,
-        contato: {
-          nome: contato.nome,
-          telefone: contato.telefone,
-        },
-      }),
-    }).catch((err) => {
-      console.error('[Webhook] Erro ao disparar agente', err)
+    after(async () => {
+      try {
+        await fetch(`${appUrl}/api/agente/processar`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-internal-secret': cronSecret,
+          },
+          body: JSON.stringify({
+            clinicaId,
+            conversaId: conversa.id,
+            contatoId: contato.id,
+            texto,
+            contato: {
+              nome: contato.nome,
+              telefone: contato.telefone,
+            },
+          }),
+        })
+      } catch (err) {
+        console.error('[Webhook] Erro ao disparar agente', err)
+      }
     })
 
     return Response.json({ ok: true })

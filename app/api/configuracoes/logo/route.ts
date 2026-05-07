@@ -14,8 +14,18 @@ export async function POST(request: NextRequest) {
 
     if (!file) return Response.json({ error: 'Arquivo não enviado' }, { status: 400 })
 
-    if (!['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'].includes(file.type)) {
-      return Response.json({ error: 'Formato inválido. Use PNG, JPG, WEBP ou SVG.' }, { status: 400 })
+    const MAX_BYTES = 2 * 1024 * 1024 // 2 MB
+    if (file.size > MAX_BYTES) {
+      return Response.json({ error: 'Arquivo maior que 2MB.' }, { status: 400 })
+    }
+
+    // SVG pode embutir <script> — bloquear por segurança
+    if (file.type === 'image/svg+xml') {
+      return Response.json({ error: 'SVG não suportado por segurança. Use PNG, JPG ou WEBP.' }, { status: 400 })
+    }
+
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      return Response.json({ error: 'Formato inválido. Use PNG, JPG ou WEBP.' }, { status: 400 })
     }
 
     const extensao = file.name.split('.').pop() ?? 'png'

@@ -1,23 +1,16 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { isSuperAdmin } from '@/lib/auth'
 import { gerarSenhaSegura } from '@/lib/password'
 import { encryptSecret } from '@/lib/crypto'
-
-function isAdmin(email: string): boolean {
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
-  const fallback = process.env.ADMIN_EMAIL?.toLowerCase()
-  return adminEmails.includes(email.toLowerCase()) ||
-    (!!fallback && email.toLowerCase() === fallback)
-}
 
 // ─── GET — listar todas as clínicas ─────────────────────────────────────────
 
 export async function GET() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !isAdmin(user.email ?? '')) {
+  if (!user || !isSuperAdmin(user.email)) {
     return Response.json({ error: 'Não autorizado' }, { status: 401 })
   }
 
@@ -44,7 +37,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !isAdmin(user.email ?? '')) {
+  if (!user || !isSuperAdmin(user.email)) {
     return Response.json({ error: 'Não autorizado' }, { status: 401 })
   }
 

@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { sanitizeFilterValue } from '@/lib/sanitize'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ─────────────────────────────────────────────
@@ -27,7 +28,8 @@ export async function GET(request: NextRequest) {
       .order('nome', { ascending: true })
 
     if (busca.length >= 2) {
-      query = query.or(`nome.ilike.%${busca}%,telefone.ilike.%${busca}%`)
+      const buscaSanitizada = sanitizeFilterValue(busca)
+      query = query.or(`nome.ilike.%${buscaSanitizada}%,telefone.ilike.%${buscaSanitizada}%`)
     }
 
     const { data: contatos, error } = await query

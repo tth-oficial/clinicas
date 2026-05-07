@@ -1,28 +1,15 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
+import { isSuperAdmin } from '@/lib/auth'
 import Link from 'next/link'
 import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton'
-
-// Emails com acesso ao painel admin (definir também em ADMIN_EMAILS no .env)
-function isAdmin(email: string): boolean {
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',')
-    .map(e => e.trim().toLowerCase())
-    .filter(Boolean)
-
-  // Fallback: se não configurado, usa o email do .env
-  const fallback = process.env.ADMIN_EMAIL?.toLowerCase()
-
-  return adminEmails.includes(email.toLowerCase()) ||
-    (!!fallback && email.toLowerCase() === fallback)
-}
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
 
   if (!user) redirect('/login')
-  if (!isAdmin(user.email ?? '')) redirect('/dashboard')
+  if (!isSuperAdmin(user.email)) redirect('/dashboard')
 
   // Admin pode ou não ter clínica associada — só mostra "Voltar ao sistema" se tiver
   const { data: vinculoClinica } = await supabase

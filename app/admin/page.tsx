@@ -1,21 +1,14 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
+import { isSuperAdmin } from '@/lib/auth'
 import { redirect } from 'next/navigation'
 import Link from 'next/link'
 import { PainelAdmin } from '@/components/admin/PainelAdmin'
 
-function isAdmin(email: string): boolean {
-  const adminEmails = (process.env.ADMIN_EMAILS ?? '')
-    .split(',').map(e => e.trim().toLowerCase()).filter(Boolean)
-  const fallback = process.env.ADMIN_EMAIL?.toLowerCase()
-  return adminEmails.includes(email.toLowerCase()) ||
-    (!!fallback && email.toLowerCase() === fallback)
-}
-
 export default async function AdminPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user || !isAdmin(user.email ?? '')) redirect('/dashboard')
+  if (!user || !isSuperAdmin(user.email)) redirect('/dashboard')
 
   const admin = createAdminClient()
 
