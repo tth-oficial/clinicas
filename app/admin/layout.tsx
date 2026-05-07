@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { createClient } from '@/lib/supabase/server'
 import Link from 'next/link'
+import { AdminLogoutButton } from '@/components/admin/AdminLogoutButton'
 
 // Emails com acesso ao painel admin (definir também em ADMIN_EMAILS no .env)
 function isAdmin(email: string): boolean {
@@ -22,6 +23,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
   if (!isAdmin(user.email ?? '')) redirect('/dashboard')
+
+  // Admin pode ou não ter clínica associada — só mostra "Voltar ao sistema" se tiver
+  const { data: vinculoClinica } = await supabase
+    .from('usuarios_clinicas')
+    .select('clinica_id')
+    .eq('user_id', user.id)
+    .maybeSingle()
+  const temClinica = !!vinculoClinica?.clinica_id
 
   return (
     <div className="min-h-screen" style={{ background: '#0A0F0D' }}>
@@ -46,11 +55,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             style={{ background: '#1B5E4F', color: '#fff' }}>
             + Novo cliente
           </Link>
-          <Link href="/dashboard"
-            className="text-xs transition-opacity hover:opacity-80"
-            style={{ color: '#6B7280' }}>
-            ← Voltar ao sistema
-          </Link>
+          {temClinica && (
+            <Link href="/dashboard"
+              className="text-xs transition-opacity hover:opacity-80"
+              style={{ color: '#6B7280' }}>
+              ← Voltar ao sistema
+            </Link>
+          )}
+          <span className="text-xs hidden sm:inline" style={{ color: '#6B7280' }}>
+            {user.email}
+          </span>
+          <AdminLogoutButton />
         </div>
       </header>
 
