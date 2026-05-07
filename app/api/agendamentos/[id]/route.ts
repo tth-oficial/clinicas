@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { atualizarAgendamentoSchema } from '@/lib/validators/agendamentos'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ─────────────────────────────────────────────
@@ -19,13 +20,18 @@ export async function PATCH(
 
     const clinica = await getClinicaDoUsuario(user.id)
 
-    const body = await request.json() as {
-      status?: string
-      profissional?: string
-      notas?: string
-      valor?: number
-      data_hora?: string
-      duracao_minutos?: number
+    let body
+    try {
+      body = atualizarAgendamentoSchema.parse(await request.json())
+    } catch (err) {
+      return NextResponse.json(
+        { error: 'Dados inválidos', detalhes: err instanceof Error ? err.message : undefined },
+        { status: 400 }
+      )
+    }
+
+    if (Object.keys(body).length === 0) {
+      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 })
     }
 
     const { data: agendamento, error } = await supabase

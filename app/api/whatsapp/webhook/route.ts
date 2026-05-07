@@ -1,42 +1,46 @@
 import { NextRequest } from 'next/server'
-import { timingSafeEqual, createHash } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { detectarRespostaAntiNoshow, detectarEngajamentoFollowup } from '@/lib/cadencia-ia'
+import { verifyBody } from '@/lib/webhook-signature'
 
 export const maxDuration = 60
 
+const PLACEHOLDER_SECRET = 'trocar_por_string_aleatoria_forte'
+
 // ─── Validação de assinatura ──────────────────────────────────────────────────
+// HMAC-SHA256 do raw body com WEBHOOK_SECRET. A Evolution precisa enviar
+// o header `x-webhook-signature: sha256=<hex>` (configurado em
+// EvolutionAPI.setWebhook) computado sobre o mesmo corpo.
 
-function safeCompare(a: string, b: string): boolean {
-  const aHash = createHash('sha256').update(a).digest()
-  const bHash = createHash('sha256').update(b).digest()
-  return timingSafeEqual(aHash, bHash)
-}
-
-function isValidSignature(request: NextRequest, signature: string | null): boolean {
+function isValidSignature(
+  request: NextRequest,
+  rawBody: string,
+  signature: string | null
+): boolean {
   const secret = process.env.WEBHOOK_SECRET
 
-  // Se WEBHOOK_SECRET não configurado ou é placeholder, aceita tudo
-  // O clinicaId na URL já serve como camada de autenticação
-  if (!secret || secret === 'trocar_por_string_aleatoria_forte') {
+  // Em produção, secret é obrigatório — fail-closed
+  if (!secret || secret === PLACEHOLDER_SECRET) {
+    if (process.env.NODE_ENV === 'production') {
+      console.error('[Webhook] WEBHOOK_SECRET não configurado em produção')
+      return false
+    }
     return true
   }
 
-  // Se configurado, valida — aceita via header ou query param
-  const querySecret = request.nextUrl.searchParams.get('secret')
-  const toCheck = signature ?? querySecret
-  if (!toCheck) return false
-  return safeCompare(toCheck, secret)
+  if (!signature) return false
+  return verifyBody(rawBody, secret, signature)
 }
 
 // ─── POST /api/whatsapp/webhook ───────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
-  // 1. Ler body como texto para validação de assinatura
+  // 1. Ler body cru para HMAC. JSON.parse vem depois — assinatura é
+  // calculada sobre os bytes exatos, não sobre o objeto reserializado.
   const bodyText = await request.text()
   const signature = request.headers.get('x-webhook-signature')
 
-  if (!isValidSignature(request, signature)) {
+  if (!isValidSignature(request, bodyText, signature)) {
     return Response.json({ error: 'Unauthorized' }, { status: 401 })
   }
 

@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient as createServerClient } from '@/lib/supabase/server'
 import { EvolutionAPI } from '@/lib/evolution'
+import { decryptSecret, encryptSecret } from '@/lib/crypto'
 
 /**
  * POST /api/whatsapp/setup
@@ -42,7 +43,7 @@ export async function POST(request: NextRequest) {
     (config?.evolution_url as string | null) ??
     process.env.EVOLUTION_API_URL ?? ''
   const evolutionApiKey =
-    (config?.evolution_api_key as string | null) ??
+    decryptSecret(config?.evolution_api_key as string | null) ??
     process.env.EVOLUTION_API_KEY ?? ''
 
   if (!evolutionUrl || !evolutionApiKey) {
@@ -99,11 +100,12 @@ export async function POST(request: NextRequest) {
     await evolution.configureSettings()
 
     // 6. Salvar instância no banco da clínica
+    // (evolution_api_key vai criptografado em repouso)
     await supabase
       .from('clinica_config')
       .update({
         evolution_url: evolutionUrl,
-        evolution_api_key: evolutionApiKey,
+        evolution_api_key: encryptSecret(evolutionApiKey),
         evolution_instance: instanceName,
       })
       .eq('clinica_id', clinicaId)
@@ -169,7 +171,8 @@ export async function GET(request: NextRequest) {
   const evolutionUrl =
     (config?.evolution_url as string | null) ?? process.env.EVOLUTION_API_URL ?? ''
   const evolutionApiKey =
-    (config?.evolution_api_key as string | null) ?? process.env.EVOLUTION_API_KEY ?? ''
+    decryptSecret(config?.evolution_api_key as string | null) ??
+    process.env.EVOLUTION_API_KEY ?? ''
   const instanceName =
     (config?.evolution_instance as string | null) ??
     `clinic-${clinicaId.replace(/-/g, '').slice(0, 8)}`

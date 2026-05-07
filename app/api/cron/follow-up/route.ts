@@ -127,17 +127,31 @@ export async function GET(request: NextRequest) {
           const etapaAtual = etapas.find(e => e.numero === cad.etapa_atual + 1 && e.status === 'pendente')
           if (!etapaAtual) continue
 
-          // ── Verificar se contato engajou recentemente (última msg < 24h) ──
-          const { data: ultimaMsgContato } = await supabase
-            .from('mensagens')
-            .select('texto, enviado_em')
+          // ── Verificar se ESTE contato engajou recentemente (última msg < 24h) ──
+          // Filtra pela conversa do contato — sem isso pegaríamos a última msg
+          // de qualquer paciente da clínica e pausaríamos cadências erradas.
+          const { data: conversaDoContato } = await supabase
+            .from('conversas')
+            .select('id')
             .eq('clinica_id', cad.clinica_id)
-            .eq('de', 'cliente')
-            .order('enviado_em', { ascending: false })
+            .eq('contato_id', cad.contato_id)
+            .order('atualizado_em', { ascending: false })
             .limit(1)
             .maybeSingle()
 
-          if (ultimaMsgContato) {
+          const { data: ultimaMsgContato } = conversaDoContato
+            ? await supabase
+                .from('mensagens')
+                .select('texto, enviado_em')
+                .eq('clinica_id', cad.clinica_id)
+                .eq('conversa_id', conversaDoContato.id)
+                .eq('de', 'cliente')
+                .order('enviado_em', { ascending: false })
+                .limit(1)
+                .maybeSingle()
+            : { data: null }
+
+          if (ultimaMsgContato?.texto) {
             const ultimaMsg = new Date(ultimaMsgContato.enviado_em)
             const horasPassadas = (agora.getTime() - ultimaMsg.getTime()) / (1000 * 60 * 60)
             // Se engajou nas últimas 24h — pausar cadência, agente IA já está cuidando

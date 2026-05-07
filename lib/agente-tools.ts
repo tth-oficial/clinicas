@@ -199,17 +199,96 @@ export async function marcarConsulta(
     const normalized = dataHoraStr.includes('T')
       ? dataHoraStr
       : dataHoraStr.replace(' ', 'T') + ':00'
-    dataHora = new Date(normalized).toISOString()
+    const d = new Date(normalized)
+    if (Number.isNaN(d.getTime())) throw new Error('NaN')
+    dataHora = d.toISOString()
   } catch {
     throw new Error(`Data/hora inválida: ${dataHoraStr}`)
   }
 
-  // Buscar contato para templates
+  const dataHoraObjValidacao = new Date(dataHora)
+  const duracao = servico?.duracao_minutos ?? 60
+
+  // Não aceitar agendamento no passado
+  if (dataHoraObjValidacao.getTime() < Date.now()) {
+    return {
+      sucesso: false,
+      erro: 'A data/hora informada está no passado. Por favor, escolha outro horário.',
+    }
+  }
+
+  // Validar horário de funcionamento da clínica para o dia da semana
+  const diaSemana = dataHoraObjValidacao.getDay()
+  const { data: horarioDia } = await supabase
+    .from('horarios_funcionamento')
+    .select('hora_inicio, hora_fim, ativo')
+    .eq('clinica_id', clinicaId)
+    .eq('dia_semana', diaSemana)
+    .maybeSingle()
+
+  if (!horarioDia?.ativo) {
+    return {
+      sucesso: false,
+      erro: 'A clínica está fechada neste dia.',
+    }
+  }
+
+  const minutoSlotInicio =
+    dataHoraObjValidacao.getHours() * 60 + dataHoraObjValidacao.getMinutes()
+  const minutoSlotFim = minutoSlotInicio + duracao
+  const [hI, mI] = horarioDia.hora_inicio.split(':').map(Number)
+  const [hF, mF] = horarioDia.hora_fim.split(':').map(Number)
+  const minAbre = hI * 60 + mI
+  const minFecha = hF * 60 + mF
+
+  if (minutoSlotInicio < minAbre || minutoSlotFim > minFecha) {
+    return {
+      sucesso: false,
+      erro: 'O horário escolhido está fora do funcionamento da clínica.',
+    }
+  }
+
+  // Verificar conflito com outros agendamentos do mesmo profissional (ou
+  // qualquer agendamento se profissional não foi escolhido)
+  const inicioDia = `${dataHora.slice(0, 10)}T00:00:00`
+  const fimDia = `${dataHora.slice(0, 10)}T23:59:59`
+
+  let queryConflito = supabase
+    .from('agendamentos')
+    .select('data_hora, duracao_minutos, profissional_id')
+    .eq('clinica_id', clinicaId)
+    .gte('data_hora', inicioDia)
+    .lte('data_hora', fimDia)
+    .not('status', 'in', '("cancelado","no_show")')
+
+  if (profissionalId) {
+    queryConflito = queryConflito.eq('profissional_id', profissionalId)
+  }
+
+  const { data: agendamentosDia } = await queryConflito
+  for (const ag of agendamentosDia ?? []) {
+    const t = new Date(ag.data_hora)
+    const aInicio = t.getHours() * 60 + t.getMinutes()
+    const aFim = aInicio + (ag.duracao_minutos ?? 60)
+    if (minutoSlotInicio < aFim && minutoSlotFim > aInicio) {
+      return {
+        sucesso: false,
+        erro: 'Esse horário já está ocupado. Sugira outro.',
+      }
+    }
+  }
+
+  // Buscar contato para templates (e revalidar tenant)
   const { data: contato } = await supabase
     .from('contatos')
     .select('nome, telefone')
     .eq('id', contatoId)
-    .single()
+    .eq('clinica_id', clinicaId)
+    .maybeSingle()
+
+  if (!contato) {
+    throw new Error('[marcarConsulta] contato não pertence à clínica')
+  }
 
   // Criar agendamento
   const { data: agendamento, error: errAg } = await supabase
@@ -327,20 +406,55 @@ export async function consultarAgendamentosPaciente(
 }
 
 // ─── 6. Cancelar Agendamento ──────────────────────────────────────────────────
+// Recebe clinicaId + contatoId do contexto da sessão de WhatsApp para
+// garantir que o paciente só consegue cancelar o próprio agendamento dele.
+// Sem isso, prompt-injection permitiria "cancele o agendamento ID xxx" e
+// derrubaria agendamentos de qualquer paciente da clínica.
 
-export async function cancelarAgendamento(agendamentoId: string) {
+export async function cancelarAgendamento(
+  agendamentoId: string,
+  clinicaId?: string,
+  contatoId?: string
+) {
+  // Quando chamado pelo agente via WhatsApp, clinicaId/contatoId são
+  // obrigatórios. Manter argumentos opcionais por compatibilidade com
+  // o type da OpenAI Function Call (que só passa o ID), mas a validação
+  // abaixo bloqueia qualquer chamada sem contexto de sessão.
+  if (!clinicaId || !contatoId) {
+    throw new Error('[cancelarAgendamento] contexto de sessão ausente')
+  }
+
+  // Verifica posse antes de qualquer mutação
+  const { data: agendamento } = await supabase
+    .from('agendamentos')
+    .select('id')
+    .eq('id', agendamentoId)
+    .eq('clinica_id', clinicaId)
+    .eq('contato_id', contatoId)
+    .maybeSingle()
+
+  if (!agendamento) {
+    return {
+      sucesso: false,
+      erro: 'Agendamento não encontrado para este paciente.',
+    }
+  }
+
   const { error } = await supabase
     .from('agendamentos')
     .update({ status: 'cancelado', atualizado_em: new Date().toISOString() })
     .eq('id', agendamentoId)
+    .eq('clinica_id', clinicaId)
+    .eq('contato_id', contatoId)
 
   if (error) throw new Error(`[cancelarAgendamento] ${error.message}`)
 
-  // Cancelar cadência anti-noshow associada
+  // Cancelar cadência anti-noshow associada (também filtrada por tenant)
   await supabase
     .from('cadencias')
     .update({ status: 'cancelada', atualizado_em: new Date().toISOString() })
     .eq('agendamento_id', agendamentoId)
+    .eq('clinica_id', clinicaId)
     .eq('tipo', 'anti_noshow')
 
   return { sucesso: true }

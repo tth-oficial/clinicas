@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { atualizarLeadSchema } from '@/lib/validators/leads'
 import { NextResponse } from 'next/server'
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -42,11 +43,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   try { clinica = await getClinicaDoUsuario(user.id) }
   catch { return NextResponse.json({ error: 'Clínica não encontrada' }, { status: 403 }) }
 
-  const body = await request.json()
+  let dados
+  try {
+    dados = atualizarLeadSchema.parse(await request.json())
+  } catch (err) {
+    return NextResponse.json(
+      { error: 'Dados inválidos', detalhes: err instanceof Error ? err.message : undefined },
+      { status: 400 }
+    )
+  }
+
+  if (Object.keys(dados).length === 0) {
+    return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 })
+  }
 
   const { data, error } = await supabase
     .from('leads')
-    .update({ ...body, atualizado_em: new Date().toISOString() })
+    .update({ ...dados, atualizado_em: new Date().toISOString() })
     .eq('id', id)
     .eq('clinica_id', clinica.id)
     .select('*, contatos(id, nome, telefone)')

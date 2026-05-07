@@ -1,5 +1,6 @@
 import OpenAI from 'openai'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptSecret } from '@/lib/crypto'
 import type { ClinicaConfig, Contato } from '@/types'
 import {
   listarServicos,
@@ -232,7 +233,9 @@ async function executarFerramenta(
       return consultarAgendamentosPaciente(clinicaId, contatoId)
 
     case 'cancelar_agendamento':
-      return cancelarAgendamento(args.agendamento_id)
+      // Passa clinicaId/contatoId da sessão — o agente IA NUNCA pode
+      // cancelar agendamentos de outro paciente, mesmo via prompt injection.
+      return cancelarAgendamento(args.agendamento_id, clinicaId, contatoId)
 
     case 'escalar_humano':
       return escalarParaHumano(clinicaId, conversaId, contatoId, args.motivo)
@@ -283,9 +286,9 @@ export async function processarMensagem(
 
   const historico = (historicoData ?? []) as MensagemDB[]
 
-  // 4. API Key e modelo
+  // 4. API Key e modelo (segredo armazenado criptografado)
   const apiKey =
-    (configData.openai_api_key as string | null) ??
+    decryptSecret(configData.openai_api_key as string | null) ??
     process.env.OPENAI_API_KEY ??
     ''
 

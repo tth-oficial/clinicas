@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptSecret } from '@/lib/crypto'
 import OpenAI from 'openai'
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -40,8 +41,9 @@ export async function personalizarMensagemCadencia(
       .eq('clinica_id', clinicaId)
       .single()
 
-    if (!config?.openai_api_key) {
-      // Sem API key — retorna template sem personalização
+    const apiKeyPlain = decryptSecret(config?.openai_api_key ?? null)
+    if (!apiKeyPlain) {
+      // Sem API key configurada — retorna template sem personalização
       return templateBase
     }
 
@@ -52,13 +54,28 @@ export async function personalizarMensagemCadencia(
       .eq('id', contatoId)
       .single()
 
-    // 3. Buscar últimas mensagens do contato para contexto
-    const { data: mensagens } = await supabase
-      .from('mensagens')
-      .select('de, texto, enviado_em')
+    // 3. Buscar últimas mensagens DO CONTATO ATUAL (não da clínica inteira).
+    // Sem o filtro por contato, o histórico de outros pacientes vazaria
+    // para o prompt do GPT durante a personalização — bug de privacidade.
+    // Resolvemos via conversa do contato.
+    const { data: conversaContato } = await supabase
+      .from('conversas')
+      .select('id')
       .eq('clinica_id', clinicaId)
-      .order('enviado_em', { ascending: false })
-      .limit(6)
+      .eq('contato_id', contatoId)
+      .order('atualizado_em', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const { data: mensagens } = conversaContato
+      ? await supabase
+          .from('mensagens')
+          .select('de, texto, enviado_em')
+          .eq('clinica_id', clinicaId)
+          .eq('conversa_id', conversaContato.id)
+          .order('enviado_em', { ascending: false })
+          .limit(6)
+      : { data: [] as Array<{ de: string; texto: string | null; enviado_em: string }> }
 
     // Formata histórico resumido (mais recentes primeiro, invertido para contexto)
     const historicoResumido = mensagens
@@ -90,7 +107,7 @@ export async function personalizarMensagemCadencia(
 
     // 5. Chamar GPT para personalizar
     const mensagemPersonalizada = await chamarGPTPersonalizacao(
-      config.openai_api_key,
+      apiKeyPlain,
       config.openai_model ?? 'gpt-4o-mini',
       templateBase,
       contexto

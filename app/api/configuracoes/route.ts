@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { encryptSecret, decryptSecret } from '@/lib/crypto'
 
 // ─── GET /api/configuracoes ─────────────────────────────────────────────────
 
@@ -20,11 +21,14 @@ export async function GET() {
 
     if (error) return Response.json({ error: error.message }, { status: 400 })
 
-    // Mascarar API keys — retornar apenas indicador de presença
+    // Descriptografar antes de mascarar (caso esteja em formato enc:v1:)
+    const openaiPlain = decryptSecret(config.openai_api_key) ?? ''
+    const evolutionPlain = decryptSecret(config.evolution_api_key) ?? ''
+
     const resposta = {
       ...config,
-      openai_api_key: config.openai_api_key ? '••••••••' + config.openai_api_key.slice(-4) : null,
-      evolution_api_key: config.evolution_api_key ? '••••••••' + config.evolution_api_key.slice(-4) : null,
+      openai_api_key: openaiPlain ? '••••••••' + openaiPlain.slice(-4) : null,
+      evolution_api_key: evolutionPlain ? '••••••••' + evolutionPlain.slice(-4) : null,
       clinica,
     }
 
@@ -70,7 +74,12 @@ export async function PATCH(request: NextRequest) {
             typeof v === 'string' && v.startsWith('••••')) {
           continue
         }
-        updateConfig[k] = v
+        // Encriptar segredos antes de gravar
+        if (k === 'openai_api_key' || k === 'evolution_api_key') {
+          updateConfig[k] = encryptSecret(typeof v === 'string' ? v : null)
+        } else {
+          updateConfig[k] = v
+        }
       }
       if (camposClinica.includes(k)) {
         updateClinica[k] = v

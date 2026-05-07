@@ -72,9 +72,10 @@ export default function NovoClientePage() {
   }
 
   function gerarSenha() {
-    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789@#!'
-    const senha = Array.from({ length: 12 }, () => chars[Math.floor(Math.random() * chars.length)]).join('')
-    setForm(f => ({ ...f, senha_admin: senha }))
+    // Math.random não é criptograficamente seguro. Em vez de gerar aqui,
+    // deixamos o campo vazio: o servidor gera com crypto.randomInt e
+    // devolve a senha no payload de resposta da criação do cliente.
+    setForm(f => ({ ...f, senha_admin: '' }))
   }
 
   function gerarInstancia() {
@@ -102,10 +103,11 @@ export default function NovoClientePage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.nome || !form.email_admin || !form.senha_admin) {
-      setErro('Preencha pelo menos: nome da clínica, email e senha de acesso.')
+    if (!form.nome || !form.email_admin) {
+      setErro('Preencha pelo menos: nome da clínica e email de acesso.')
       return
     }
+    // senha_admin é opcional — servidor gera com CSPRNG se vier vazia
     setCriando(true)
     setErro('')
 
@@ -373,13 +375,13 @@ export default function NovoClientePage() {
               <label className="block text-xs font-medium mb-1.5" style={{ color: '#9CA3AF' }}>Senha *</label>
               <div className="flex gap-2">
                 <input type="text" value={form.senha_admin} onChange={set('senha_admin')}
-                  placeholder="Mínimo 8 caracteres"
+                  placeholder="Deixe vazio para gerar no servidor"
                   className="flex-1 px-3 py-2 rounded-lg border text-sm font-mono"
                   style={{ background: '#0A0F0D', borderColor: '#1F2B27', color: '#E5E7EB' }} />
                 <button type="button" onClick={gerarSenha}
                   className="px-3 py-2 rounded-lg text-xs border transition-opacity hover:opacity-80"
                   style={{ borderColor: '#1F2B27', color: '#6B7280' }}>
-                  Gerar
+                  Limpar
                 </button>
               </div>
             </div>
