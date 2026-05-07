@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { decryptSecret } from '@/lib/crypto'
 import type { ClinicaConfig } from '@/types'
 
 export interface EvolutionConfig {
@@ -260,7 +261,9 @@ export async function createEvolutionClient(
   const url =
     cfg?.evolution_url ?? process.env.EVOLUTION_API_URL ?? ''
   const apiKey =
-    cfg?.evolution_api_key ?? process.env.EVOLUTION_API_KEY ?? ''
+    decryptSecret(cfg?.evolution_api_key ?? null) ??
+    process.env.EVOLUTION_API_KEY ??
+    ''
   const instance =
     cfg?.evolution_instance ?? process.env.EVOLUTION_INSTANCE ?? 'default'
 

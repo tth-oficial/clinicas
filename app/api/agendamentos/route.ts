@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { criarAgendamentoSchema } from '@/lib/validators/agendamentos'
 import { NextRequest, NextResponse } from 'next/server'
 
 // ─────────────────────────────────────────────
@@ -76,22 +77,49 @@ export async function POST(request: NextRequest) {
 
     const clinica = await getClinicaDoUsuario(user.id)
 
-    const body = await request.json() as {
-      contato_id: string
-      servico: string
-      data_hora: string
-      duracao_minutos?: number
-      profissional?: string
-      valor?: number
-      notas?: string
-      lead_id?: string
-    }
-
-    if (!body.contato_id || !body.servico || !body.data_hora) {
+    let body
+    try {
+      body = criarAgendamentoSchema.parse(await request.json())
+    } catch (err) {
       return NextResponse.json(
-        { error: 'contato_id, servico e data_hora são obrigatórios' },
+        { error: 'Dados inválidos', detalhes: err instanceof Error ? err.message : undefined },
         { status: 400 }
       )
+    }
+
+    // Tenant-scope check: o contato precisa ser da clínica do usuário.
+    // Sem isso, FK aceitaria contato_id de outra clínica e o agendamento
+    // seria criado cruzando tenants (mesmo que o clinica_id final seja o
+    // do usuário autenticado).
+    const { data: contatoOk } = await supabase
+      .from('contatos')
+      .select('id')
+      .eq('id', body.contato_id)
+      .eq('clinica_id', clinica.id)
+      .maybeSingle()
+
+    if (!contatoOk) {
+      return NextResponse.json(
+        { error: 'Contato não pertence a esta clínica' },
+        { status: 403 }
+      )
+    }
+
+    // Lead, se informado, também precisa ser da clínica
+    if (body.lead_id) {
+      const { data: leadOk } = await supabase
+        .from('leads')
+        .select('id')
+        .eq('id', body.lead_id)
+        .eq('clinica_id', clinica.id)
+        .maybeSingle()
+
+      if (!leadOk) {
+        return NextResponse.json(
+          { error: 'Lead não pertence a esta clínica' },
+          { status: 403 }
+        )
+      }
     }
 
     // 1. Criar o agendamento
@@ -102,9 +130,11 @@ export async function POST(request: NextRequest) {
         contato_id: body.contato_id,
         lead_id: body.lead_id ?? null,
         servico: body.servico,
+        servico_id: body.servico_id ?? null,
         data_hora: body.data_hora,
         duracao_minutos: body.duracao_minutos ?? 60,
         profissional: body.profissional ?? null,
+        profissional_id: body.profissional_id ?? null,
         valor: body.valor ?? null,
         notas: body.notas ?? null,
         status: 'agendado',

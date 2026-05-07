@@ -1,24 +1,29 @@
 import { NextRequest } from 'next/server'
-import { timingSafeEqual, createHash } from 'crypto'
+import { timingSafeEqual } from 'crypto'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { processarMensagem } from '@/lib/openai'
 import { createEvolutionClient } from '@/lib/evolution'
 
 export const maxDuration = 60
 
+const PLACEHOLDER_SECRET = 'trocar_por_string_aleatoria_forte'
+
 // ─── Validação de segurança ───────────────────────────────────────────────────
+// Bearer estático (CRON_SECRET) entre webhook e agente. Comparação em
+// tempo constante para evitar timing attacks.
 
 function safeCompare(a: string, b: string): boolean {
-  const aHash = createHash('sha256').update(a).digest()
-  const bHash = createHash('sha256').update(b).digest()
-  return timingSafeEqual(aHash, bHash)
+  const ab = Buffer.from(a)
+  const bb = Buffer.from(b)
+  if (ab.length !== bb.length) return false
+  return timingSafeEqual(ab, bb)
 }
 
 function isAuthorized(request: NextRequest): boolean {
   const secret = request.headers.get('x-internal-secret')
   const cronSecret = process.env.CRON_SECRET
 
-  if (!cronSecret || cronSecret === 'trocar_por_string_aleatoria_forte') {
+  if (!cronSecret || cronSecret === PLACEHOLDER_SECRET) {
     if (process.env.NODE_ENV === 'production') {
       console.error('[Agente] CRON_SECRET não configurado em produção!')
       return false

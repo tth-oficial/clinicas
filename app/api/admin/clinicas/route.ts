@@ -1,6 +1,8 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { gerarSenhaSegura } from '@/lib/password'
+import { encryptSecret } from '@/lib/crypto'
 
 function isAdmin(email: string): boolean {
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
@@ -71,9 +73,10 @@ export async function POST(request: NextRequest) {
     evolution_instance: string
     evolution_url: string
     evolution_api_key: string
-    // Acesso
+    // Acesso. senha_admin opcional — se ausente ou vazia, geramos no
+    // servidor com CSPRNG e devolvemos no payload de resposta.
     email_admin: string
-    senha_admin: string
+    senha_admin?: string
     // Módulos
     modulos_ativos: string[]
   }
@@ -94,8 +97,19 @@ export async function POST(request: NextRequest) {
     modulos_ativos,
   } = body
 
-  if (!nome || !email_admin || !senha_admin) {
-    return Response.json({ error: 'nome, email_admin e senha_admin são obrigatórios' }, { status: 400 })
+  if (!nome || !email_admin) {
+    return Response.json({ error: 'nome e email_admin são obrigatórios' }, { status: 400 })
+  }
+
+  // Senha: se cliente não enviou ou enviou vazia, gera no servidor com CSPRNG.
+  // Se enviou, exige no mínimo 8 caracteres.
+  let senhaFinal: string
+  if (!senha_admin) {
+    senhaFinal = gerarSenhaSegura(14)
+  } else if (senha_admin.length < 8) {
+    return Response.json({ error: 'Senha deve ter no mínimo 8 caracteres' }, { status: 400 })
+  } else {
+    senhaFinal = senha_admin
   }
 
   try {
@@ -127,10 +141,10 @@ export async function POST(request: NextRequest) {
         agente_nome: agente_nome || 'Assistente',
         agente_tom: agente_tom || 'profissional e acolhedor',
         agente_prompt: agente_prompt || null,
-        openai_api_key: openai_api_key || null,
+        openai_api_key: encryptSecret(openai_api_key || null),
         openai_model: openai_model || 'gpt-4o',
         evolution_url: evolutionUrlFinal || null,
-        evolution_api_key: evolutionKeyFinal || null,
+        evolution_api_key: encryptSecret(evolutionKeyFinal || null),
         evolution_instance: evolution_instance || null,
         modulos_ativos: modulos_ativos?.length
           ? modulos_ativos
@@ -147,7 +161,7 @@ export async function POST(request: NextRequest) {
     // 3. Criar usuário no Auth
     const { data: novoUser, error: errAuth } = await admin.auth.admin.createUser({
       email: email_admin,
-      password: senha_admin,
+      password: senhaFinal,
       email_confirm: true,
     })
 
@@ -173,7 +187,7 @@ export async function POST(request: NextRequest) {
       ok: true,
       clinica_id: clinicaId,
       email: email_admin,
-      senha: senha_admin,
+      senha: senhaFinal,
       url_acesso: process.env.NEXT_PUBLIC_APP_URL
         ? `${process.env.NEXT_PUBLIC_APP_URL}/login`
         : '/login',

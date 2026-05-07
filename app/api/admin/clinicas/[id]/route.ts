@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { encryptSecret, decryptSecret } from '@/lib/crypto'
 
 function isAdmin(email: string): boolean {
   const adminEmails = (process.env.ADMIN_EMAILS ?? '')
@@ -64,12 +65,12 @@ export async function GET(
       agente_tom: cfg?.agente_tom ?? 'profissional e acolhedor',
       agente_prompt: cfg?.agente_prompt ?? '',
       openai_api_key: cfg?.openai_api_key
-        ? '••••••••' + (cfg.openai_api_key as string).slice(-4)
+        ? '••••••••' + (decryptSecret(cfg.openai_api_key as string) ?? '').slice(-4)
         : '',
       openai_model: cfg?.openai_model ?? 'gpt-4o',
       evolution_url: cfg?.evolution_url ?? '',
       evolution_api_key: cfg?.evolution_api_key
-        ? '••••••••' + (cfg.evolution_api_key as string).slice(-4)
+        ? '••••••••' + (decryptSecret(cfg.evolution_api_key as string) ?? '').slice(-4)
         : '',
       evolution_instance: cfg?.evolution_instance ?? '',
       modulos_ativos: cfg?.modulos_ativos ?? [],
@@ -103,9 +104,22 @@ export async function PATCH(
   const updateClinica: Record<string, unknown> = {}
   const updateConfig: Record<string, unknown> = {}
 
+  // GET retorna keys mascaradas (••••••XXXX). Se o admin não trocar,
+  // o front manda a string mascarada de volta — que NÃO pode sobrescrever
+  // o valor real. Filtramos aqui.
+  const eMascarado = (v: unknown): boolean =>
+    typeof v === 'string' && v.startsWith('••••')
+
   for (const [k, v] of Object.entries(body)) {
     if (camposClinica.includes(k)) updateClinica[k] = v
-    if (camposConfig.includes(k)) updateConfig[k] = v
+    if (camposConfig.includes(k)) {
+      if ((k === 'openai_api_key' || k === 'evolution_api_key')) {
+        if (eMascarado(v)) continue
+        updateConfig[k] = encryptSecret(typeof v === 'string' ? v : null)
+      } else {
+        updateConfig[k] = v
+      }
+    }
   }
 
   if (Object.keys(updateClinica).length > 0) {

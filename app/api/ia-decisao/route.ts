@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { getClinicaDoUsuario } from '@/lib/supabase/queries'
+import { decryptSecret } from '@/lib/crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -29,7 +30,9 @@ export async function POST(request: NextRequest) {
       .eq('clinica_id', clinica.id)
       .single()
 
-    const apiKey = (config?.openai_api_key as string | null) ?? process.env.OPENAI_API_KEY ?? ''
+    const apiKey =
+      decryptSecret(config?.openai_api_key as string | null) ??
+      process.env.OPENAI_API_KEY ?? ''
     if (!apiKey) {
       return NextResponse.json({ error: 'OpenAI API key não configurada' }, { status: 400 })
     }

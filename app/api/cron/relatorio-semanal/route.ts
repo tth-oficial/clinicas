@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createEvolutionClient } from '@/lib/evolution'
+import { decryptSecret } from '@/lib/crypto'
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
 
@@ -116,7 +117,9 @@ export async function GET(request: NextRequest) {
           .eq('clinica_id', clinica.id)
           .single()
 
-        const apiKey = (config?.openai_api_key as string | null) ?? process.env.OPENAI_API_KEY ?? ''
+        const apiKey =
+          decryptSecret(config?.openai_api_key as string | null) ??
+          process.env.OPENAI_API_KEY ?? ''
         if (!apiKey) {
           resultados.push(`${clinica.nome}: sem API key`)
           continue
